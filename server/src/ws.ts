@@ -7,6 +7,7 @@ import { validate, out, CloseCode } from './protocol.ts';
 import { TokenBucket } from './rate-limit.ts';
 import { NetSim, validateNetsim, type NetsimParams } from './netsim.ts';
 import type { ServerConfig } from './config.ts';
+import { log } from './logger.ts';
 import type { Match } from './match.ts';
 import type { Player, Room, RoomManager, SocketLike } from './rooms.ts';
 
@@ -45,7 +46,7 @@ const sizeOf = (payload: string | ArrayBuffer): number => (typeof payload === 's
  * Attach connection handling to a ws WebSocketServer.
  * Per-socket state lives in a WeakMap keyed by the socket: it is garbage-collected together with the socket.
  */
-export function attachWs(wss: WebSocketServer, manager: RoomManager, config: ServerConfig, stats: ServerStats, matchFor: (room: Room) => Match): { heartbeat: NodeJS.Timeout } {
+export function attachWs(wss: WebSocketServer, manager: RoomManager, config: ServerConfig, stats: ServerStats, matchFor: (room: Room) => Match, ipCounts: Map<string, number> = new Map()): { heartbeat: NodeJS.Timeout } {
   const contexts = new WeakMap<WebSocket, ConnectionContext>();
 
   wss.on('connection', (socket: WebSocket, req: IncomingMessage) => {
@@ -62,9 +63,11 @@ export function attachWs(wss: WebSocketServer, manager: RoomManager, config: Ser
     };
     contexts.set(socket, ctx);
     stats.connections++;
+    const ip = req.socket.remoteAddress ?? 'unknown';
+    ipCounts.set(ip, (ipCounts.get(ip) ?? 0) + 1);
 
     // 'error' listener on EVERY socket: otherwise a socket error crashes the process.
-    socket.on('error', (err: Error) => console.error('socket error:', err.message));
+    socket.on('error', (err: Error) => log.warn({ event: 'ws.socket.error', ip, msg: err.message }));
 
     const joinTimer = setTimeout(() => {
       if (!ctx.player) socket.close(CloseCode.JOIN_TIMEOUT, 'join-timeout');
@@ -152,6 +155,9 @@ export function attachWs(wss: WebSocketServer, manager: RoomManager, config: Ser
       clearTimeout(joinTimer);
       ctx.netsim.close(); // cancel packets still in flight
       stats.connections--;
+      const left = (ipCounts.get(ip) ?? 1) - 1;
+      if (left <= 0) ipCounts.delete(ip);
+      else ipCounts.set(ip, left);
       const { player, room } = ctx;
       if (player && room) {
         ctx.match?.removePlayer(player.id);
@@ -182,7 +188,7 @@ export function attachWs(wss: WebSocketServer, manager: RoomManager, config: Ser
 
 function reject(socket: SocketLike, reason: string, stats?: ServerStats): void {
   stats?.reject(reason);
-  console.warn(`closing socket: ${reason}`);
+  log.warn({ event: 'ws.rejected', reason });
   socket.close(CloseCode.BAD_PROTOCOL, reason);
 }
 

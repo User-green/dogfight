@@ -15,3 +15,12 @@ npm run dev:server # and, in another terminal, npm run dev:client
 ```
 
 Per-lab notes live in `docs/`.
+
+
+## Production (Lab 8)
+
+```bash
+docker compose up --build   # http://localhost:3000
+```
+
+Endpoints: `/health` (liveness, version), `/ready` (readiness), `/metrics` (Prometheus). Config via env: `ALLOWED_ORIGINS`, `MAX_CONNECTIONS_PER_IP`, `LOG_LEVEL`, `APP_VERSION`, `MAX_ROOMS`, `MAX_PLAYERS_PER_ROOM`. See `docs/lab-08.md` for measurements and what is not done (no public deployment yet).

@@ -272,3 +272,19 @@ async function boot(): Promise<void> {
 }
 
 void boot();
+
+// Version stamp (git SHA baked into the image) so you can see which build is live.
+void fetch('/health')
+  .then((r) => r.json())
+  .then((h: { version?: string }) => {
+    const tag = document.createElement('div');
+    tag.textContent = `build ${h.version ?? '?'}`;
+    tag.style.cssText = 'position:fixed;right:6px;bottom:4px;font:10px monospace;color:#888;pointer-events:none;z-index:10';
+    document.body.append(tag);
+  })
+  .catch(() => {});
+
+// PWA: the service worker makes the app installable; skipped on localhost unless ?sw=1 so dev and e2e stay uncached.
+if ('serviceWorker' in navigator && (location.hostname !== 'localhost' || new URLSearchParams(location.search).has('sw'))) {
+  void navigator.serviceWorker.register('/sw.js').catch(() => {});
+}

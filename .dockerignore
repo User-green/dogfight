@@ -1,0 +1,10 @@
+**/node_modules
+**/dist
+.git
+.github
+**/logs
+.e2e-logs
+test-results
+e2e
+**/*.md
+**/.env

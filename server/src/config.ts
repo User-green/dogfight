@@ -30,6 +30,10 @@ const ENV_NAMES = {
   inputBurst: 'INPUT_BURST',
   allowNetsim: 'ENABLE_NETSIM',
   maxBots: 'MAX_BOTS',
+  allowedOrigins: 'ALLOWED_ORIGINS',
+  maxConnectionsPerIp: 'MAX_CONNECTIONS_PER_IP',
+  logLevel: 'LOG_LEVEL',
+  version: 'APP_VERSION',
 } as const;
 
 const ConfigSchema = z.object({
@@ -51,6 +55,11 @@ const ConfigSchema = z.object({
   inputBurst: intVar(90, { min: 1 }),
   allowNetsim: flagVar, // latency/loss injector: dev and tests only
   maxBots: intVar(16), // per room; the bots endpoint is unauthenticated, so this is its only brake (0 disables it)
+  // Comma-separated origins allowed to open a WebSocket (e.g. https://game.example.com). Empty = no check (dev only).
+  allowedOrigins: strVar('').transform((s) => s.split(',').map((o) => o.trim()).filter((o) => o !== '')),
+  maxConnectionsPerIp: intVar(20, { min: 1 }),
+  logLevel: z.preprocess((v) => (v === undefined || v === '' ? 'info' : v), z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])),
+  version: strVar('dev'), // git SHA baked in at image build (APP_VERSION)
 });
 
 export type ServerConfig = Readonly<z.output<typeof ConfigSchema>>;

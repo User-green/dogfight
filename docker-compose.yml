@@ -1,0 +1,16 @@
+# Production-like local run: docker compose up --build   ->  http://localhost:3000
+services:
+  dogfight:
+    build:
+      context: .
+      args:
+        APP_VERSION: ${APP_VERSION:-local}
+    ports:
+      - "3000:3000"
+    environment:
+      ALLOWED_ORIGINS: http://localhost:3000
+      MAX_CONNECTIONS_PER_IP: "20"
+      LOG_LEVEL: info
+    init: true
+    stop_grace_period: 15s
+    restart: unless-stopped

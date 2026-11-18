@@ -12,6 +12,7 @@ import { asSeq, asTick, type EntityId, type Seq } from 'shared/types';
 import { ARENA, TICK_DT, TICK_MS, MAX_INPUT_BACKLOG } from 'shared/constants';
 import { Kind } from 'shared/sim/entity';
 import { Bot, BotSeat, type PlayerInput } from './bot.ts';
+import { log } from './logger.ts';
 
 const SAFE_RADIUS = 200;
 const PICKUP_RESPAWN_S = 15;
@@ -238,7 +239,7 @@ export class Match {
     try {
       this.tickOnce();
     } catch (err) {
-      console.error('match tick failed:', err); // a bug in one room must not kill the others
+      log.error({ event: 'match.tick.failed', err }); // a bug in one room must not kill the others
     }
     const dur = this.now() - t0;
     s.ticks++;

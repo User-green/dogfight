@@ -11,6 +11,8 @@ import { attachWs, type ServerStats } from './ws.ts';
 import type { ServerConfig } from './config.ts';
 import { serveStatic } from './static.ts';
 import { startMatchLog, type MatchLog } from './log/matchlog.ts';
+import { log as logger } from './logger.ts';
+import { Registry, Gauge, collectDefaultMetrics } from 'prom-client';
 import { Match } from './match.ts';
 import { validateCreateRoom, out, CloseCode } from './protocol.ts';
 
@@ -46,6 +48,29 @@ export function createGameServer(config: ServerConfig) {
       this.rejections[reason] = (this.rejections[reason] ?? 0) + 1;
     },
   };
+  let shuttingDown = false;
+
+  // Prometheus metrics: gauges are read at scrape time from the live objects, so there is nothing to keep in sync.
+  const registry = new Registry();
+  collectDefaultMetrics({ register: registry });
+  const gauge = (name: string, help: string, collect: () => number) => new Gauge({ name, help, registers: [registry], collect() { this.set(collect()); } });
+  gauge('dogfight_players', 'Connected WebSocket connections', () => stats.connections);
+  gauge('dogfight_rooms', 'Rooms', () => manager.list().length);
+  gauge('dogfight_bytes_in_total', 'Bytes received over WebSocket', () => stats.bytesIn);
+  gauge('dogfight_bytes_out_total', 'Bytes sent over WebSocket', () => stats.bytesOut);
+  gauge('dogfight_event_loop_utilization', 'Event loop utilization since start (0..1)', () => performance.eventLoopUtilization().utilization);
+  gauge('dogfight_tick_ms_max', 'Worst tick duration over all matches (ms)', () => Math.max(0, ...[...matches.values()].map((m) => m.stats.tickMaxMs)));
+  gauge('dogfight_tick_ms_ewma_max', 'Highest per-match tick EWMA (ms)', () => Math.max(0, ...[...matches.values()].map((m) => m.stats.tickMs)));
+  new Gauge({
+    name: 'dogfight_rejections',
+    help: 'Rejected connections/messages by reason',
+    labelNames: ['reason'],
+    registers: [registry],
+    collect() {
+      this.reset();
+      for (const [reason, n] of Object.entries(stats.rejections)) this.set({ reason }, n);
+    },
+  });
   const logs = new Map<string, Promise<MatchLog>>(); // roomId -> active match log
   const matches = new Map<string, Match>(); // roomId -> Match (the authoritative simulation); runs only while the room has players
 
@@ -65,14 +90,14 @@ export function createGameServer(config: ServerConfig) {
       if (logs.has(room.id)) return;
       const pending = startMatchLog(room, config.logDir);
       logs.set(room.id, pending);
-      void pending.then((log) => log.done.catch((err: unknown) => console.error('match log failed:', err)));
+      void pending.then((log) => log.done.catch((err: unknown) => logger.error({ event: 'matchlog.failed', err })));
     });
     room.on('empty', () => {
       matches.get(room.id)?.stop();
       matches.delete(room.id);
       const pending = logs.get(room.id);
       logs.delete(room.id);
-      pending?.then((log) => log.stop()).catch((err: unknown) => console.error('match log stop failed:', err));
+      pending?.then((log) => log.stop()).catch((err: unknown) => logger.error({ event: 'matchlog.stop.failed', err }));
     });
   });
 
@@ -86,7 +111,7 @@ export function createGameServer(config: ServerConfig) {
       await route(req, res);
     } catch (err: unknown) {
       if (err instanceof BodyTooLarge) return json(res, 413, { error: 'body-too-large' });
-      console.error('request failed:', err);
+      logger.error({ event: 'http.request.failed', err });
       if (!res.headersSent) json(res, 500, { error: 'internal' });
       else res.destroy();
     }
@@ -97,7 +122,15 @@ export function createGameServer(config: ServerConfig) {
     const { pathname } = url;
 
     if (pathname === '/health') {
-      return json(res, 200, { status: 'ok', uptime: process.uptime(), rss: process.memoryUsage.rss(), connections: stats.connections, rooms: manager.list().length });
+      return json(res, 200, { status: 'ok', version: config.version, uptime: process.uptime(), rss: process.memoryUsage.rss(), connections: stats.connections, rooms: manager.list().length });
+    }
+    // Readiness: can we take NEW traffic? False while draining, so the platform stops routing to us before we exit.
+    if (pathname === '/ready') {
+      return json(res, shuttingDown ? 503 : 200, { ready: !shuttingDown, version: config.version });
+    }
+    if (pathname === '/metrics') {
+      res.writeHead(200, { 'content-type': registry.contentType });
+      return void res.end(await registry.metrics());
     }
     if (pathname === '/api/stats') {
       const perMatch = Object.fromEntries([...matches].map(([id, m]) => [id, m.snapshotStats()]));
@@ -188,8 +221,29 @@ export function createGameServer(config: ServerConfig) {
     json(res, 404, { error: 'not-found' });
   }
 
-  const wss = new WebSocketServer({ server: httpServer, path: '/ws', maxPayload: config.maxPayload });
-  attachWs(wss, manager, config, stats, matchFor);
+  // Handshake gate, BEFORE the upgrade completes: browsers do not apply CORS to WebSockets, so the server must check Origin itself.
+  const ipCounts = new Map<string, number>();
+  const wss = new WebSocketServer({
+    server: httpServer,
+    path: '/ws',
+    maxPayload: config.maxPayload,
+    verifyClient: (info, done) => {
+      if (shuttingDown) return done(false, 503, 'shutting-down');
+      if (config.allowedOrigins.length > 0 && !config.allowedOrigins.includes(info.origin)) {
+        stats.reject('origin');
+        logger.warn({ event: 'ws.rejected', reason: 'origin', origin: info.origin });
+        return done(false, 403, 'origin-not-allowed');
+      }
+      const ip = info.req.socket.remoteAddress ?? 'unknown';
+      if ((ipCounts.get(ip) ?? 0) >= config.maxConnectionsPerIp) {
+        stats.reject('ip-cap');
+        logger.warn({ event: 'ws.rejected', reason: 'ip-cap', ip });
+        return done(false, 429, 'too-many-connections');
+      }
+      done(true);
+    },
+  });
+  attachWs(wss, manager, config, stats, matchFor, ipCounts);
 
   return {
     httpServer,
@@ -204,8 +258,13 @@ export function createGameServer(config: ServerConfig) {
           else reject(new Error('server has no TCP address'));
         });
       }),
+    /** Flip readiness to false (and refuse new upgrades) before the actual drain starts. */
+    beginShutdown(): void {
+      shuttingDown = true;
+    },
     /** Graceful shutdown: stop accepting, tell clients, close sockets, flush logs. */
     async stop(): Promise<void> {
+      shuttingDown = true;
       const closed = new Promise<void>((resolve) => httpServer.close(() => resolve())); // stops new connections
       for (const socket of wss.clients) {
         if (socket.readyState === socket.OPEN) {

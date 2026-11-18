@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
+import { log } from './logger.ts';
 import type { RoomInfo, RosterEntry } from 'shared/protocol';
 
 /** The least a Room needs from a socket. A real `ws` WebSocket satisfies it, and so does a 5-line fake in a test. */
@@ -58,7 +59,7 @@ export class Room extends EventEmitter<RoomEvents> {
     this.maxPlayers = maxPlayers;
     this.persistent = persistent;
     // An 'error' event with no listener THROWS and kills the process. Always have one.
-    this.on('error', (err) => console.error(`room ${id} error:`, err));
+    this.on('error', (err) => log.error({ event: 'room.error', roomId: id, err }));
   }
 
   get full(): boolean {
@@ -119,7 +120,7 @@ export class RoomManager extends EventEmitter<ManagerEvents> {
     super();
     this.maxRooms = maxRooms;
     this.maxPlayersPerRoom = maxPlayersPerRoom;
-    this.on('error', (err) => console.error('room manager error:', err));
+    this.on('error', (err) => log.error({ event: 'roommanager.error', err }));
   }
 
   create({ id, name, asteroids, persistent = false }: CreateOptions): Room {
