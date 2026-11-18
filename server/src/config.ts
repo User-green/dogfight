@@ -32,6 +32,7 @@ const ENV_NAMES = {
   maxBots: 'MAX_BOTS',
   allowedOrigins: 'ALLOWED_ORIGINS',
   maxConnectionsPerIp: 'MAX_CONNECTIONS_PER_IP',
+  trustProxy: 'TRUST_PROXY',
   logLevel: 'LOG_LEVEL',
   version: 'APP_VERSION',
 } as const;
@@ -58,6 +59,7 @@ const ConfigSchema = z.object({
   // Comma-separated origins allowed to open a WebSocket (e.g. https://game.example.com). Empty = no check (dev only).
   allowedOrigins: strVar('').transform((s) => s.split(',').map((o) => o.trim()).filter((o) => o !== '')),
   maxConnectionsPerIp: intVar(20, { min: 1 }),
+  trustProxy: flagVar, // honor X-Forwarded-For behind a reverse proxy (set TRUST_PROXY=1)
   logLevel: z.preprocess((v) => (v === undefined || v === '' ? 'info' : v), z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])),
   version: strVar('dev'), // git SHA baked in at image build (APP_VERSION)
 });

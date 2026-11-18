@@ -8,6 +8,7 @@ import { TokenBucket } from './rate-limit.ts';
 import { NetSim, validateNetsim, type NetsimParams } from './netsim.ts';
 import type { ServerConfig } from './config.ts';
 import { log } from './logger.ts';
+import { clientIp } from './ip.ts';
 import type { Match } from './match.ts';
 import type { Player, Room, RoomManager, SocketLike } from './rooms.ts';
 
@@ -63,7 +64,7 @@ export function attachWs(wss: WebSocketServer, manager: RoomManager, config: Ser
     };
     contexts.set(socket, ctx);
     stats.connections++;
-    const ip = req.socket.remoteAddress ?? 'unknown';
+    const ip = clientIp(req, config.trustProxy);
     ipCounts.set(ip, (ipCounts.get(ip) ?? 0) + 1);
 
     // 'error' listener on EVERY socket: otherwise a socket error crashes the process.

@@ -11,9 +11,10 @@ async function start(overrides: Parameters<typeof loadConfig>[1] = {}, env: Node
 }
 
 /** Resolve with the HTTP status of a REFUSED handshake, or 101 if it connected. */
-function handshake(url: string, origin?: string): Promise<{ status: number; socket: WebSocket }> {
+function handshake(url: string, origin?: string, headers?: Record<string, string>): Promise<{ status: number; socket: WebSocket }> {
   return new Promise((resolve) => {
-    const socket = new WebSocket(url, origin ? { origin } : {});
+    const opts: WebSocket.ClientOptions = { ...(origin ? { origin } : {}), ...(headers ? { headers } : {}) };
+    const socket = new WebSocket(url, opts);
     socket.on('open', () => resolve({ status: 101, socket }));
     socket.on('unexpected-response', (_req, res) => {
       resolve({ status: res.statusCode ?? 0, socket });
@@ -82,6 +83,17 @@ describe('handshake hardening', () => {
     expect(c.status).toBe(101);
     b.socket.close();
     c.socket.close();
+  });
+
+  test('trustProxy: honors X-Forwarded-For for per-IP cap when enabled', async (t) => {
+    const s = await start({ maxConnectionsPerIp: 1, trustProxy: true });
+    t.onTestFinished(() => s.server.stop());
+    const a = await handshake(s.ws, undefined, { 'x-forwarded-for': '203.0.113.10, 127.0.0.1' });
+    const b = await handshake(s.ws, undefined, { 'x-forwarded-for': '203.0.113.20, 127.0.0.1' });
+    expect([a.status, b.status]).toEqual([101, 101]);
+    expect((await handshake(s.ws, undefined, { 'x-forwarded-for': '203.0.113.10' })).status).toBe(429);
+    a.socket.close();
+    b.socket.close();
   });
 });
 

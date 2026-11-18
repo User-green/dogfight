@@ -12,6 +12,7 @@ import type { ServerConfig } from './config.ts';
 import { serveStatic } from './static.ts';
 import { startMatchLog, type MatchLog } from './log/matchlog.ts';
 import { log as logger } from './logger.ts';
+import { clientIp } from './ip.ts';
 import { Registry, Gauge, collectDefaultMetrics } from 'prom-client';
 import { Match } from './match.ts';
 import { validateCreateRoom, out, CloseCode } from './protocol.ts';
@@ -234,7 +235,7 @@ export function createGameServer(config: ServerConfig) {
         logger.warn({ event: 'ws.rejected', reason: 'origin', origin: info.origin });
         return done(false, 403, 'origin-not-allowed');
       }
-      const ip = info.req.socket.remoteAddress ?? 'unknown';
+      const ip = clientIp(info.req, config.trustProxy);
       if ((ipCounts.get(ip) ?? 0) >= config.maxConnectionsPerIp) {
         stats.reject('ip-cap');
         logger.warn({ event: 'ws.rejected', reason: 'ip-cap', ip });
