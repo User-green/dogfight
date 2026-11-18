@@ -1,5 +1,9 @@
-// Protocol v1: JSON messages with a `type` field. The server NEVER trusts message shape.
-export const PROTOCOL_VERSION = 1;
+// Protocol v1: JSON control messages with a `type` field. The server NEVER trusts message shape.
+// `input` (client -> server) may ALSO arrive as a binary frame; see shared/src/codec/binary.js for the wire spec.
+import { sanitizeInputPacket, PROTOCOL_VERSION as V } from 'shared/protocol';
+import { validateNetsim } from './netsim.js';
+
+export const PROTOCOL_VERSION = V;
 export const MAX_NAME = 16;
 export const MAX_CHAT = 200;
 
@@ -34,12 +38,24 @@ export function validate(data) {
     case 'join':
       if (typeof msg.room !== 'string' || !ROOM_RE.test(msg.room)) return { ok: false, reason: 'bad-room' };
       if (typeof msg.name !== 'string' || !NAME_RE.test(msg.name)) return { ok: false, reason: 'bad-name' };
-      return { ok: true, msg: { type: 'join', room: msg.room, name: msg.name } };
+      if (msg.codec !== undefined && msg.codec !== 'json' && msg.codec !== 'binary') return { ok: false, reason: 'bad-codec' };
+      return { ok: true, msg: { type: 'join', room: msg.room, name: msg.name, codec: msg.codec ?? 'json' } };
     case 'chat':
       if (typeof msg.text !== 'string' || msg.text.length < 1 || msg.text.length > MAX_CHAT) {
         return { ok: false, reason: 'bad-text' };
       }
       return { ok: true, msg: { type: 'chat', text: msg.text } };
+    case 'input': {
+      const packet = sanitizeInputPacket(msg);
+      return packet ? { ok: true, msg: { type: 'input', packet } } : { ok: false, reason: 'bad-input' };
+    }
+    case 'ping':
+      if (typeof msg.t !== 'number' || !Number.isFinite(msg.t)) return { ok: false, reason: 'bad-ping' };
+      return { ok: true, msg: { type: 'ping', t: msg.t } };
+    case 'netsim': {
+      const params = validateNetsim(msg);
+      return params ? { ok: true, msg: { type: 'netsim', ...params } } : { ok: false, reason: 'bad-netsim' };
+    }
     default:
       return { ok: false, reason: 'unknown-type' };
   }
@@ -55,7 +71,9 @@ export function validateCreateRoom(body) {
 }
 
 export const out = {
-  welcome: (id, room) => JSON.stringify({ v: PROTOCOL_VERSION, type: 'welcome', id, room }),
+  welcome: (id, room, extra = {}) => JSON.stringify({ v: PROTOCOL_VERSION, type: 'welcome', id, room, ...extra }),
+  pong: (t) => JSON.stringify({ v: PROTOCOL_VERSION, type: 'pong', t }),
+  error: (reason) => JSON.stringify({ v: PROTOCOL_VERSION, type: 'error', reason }),
   roster: (players) => JSON.stringify({ v: PROTOCOL_VERSION, type: 'roster', players }),
   chat: (from, text) => JSON.stringify({ v: PROTOCOL_VERSION, type: 'chat', from, text }),
   shutdown: () => JSON.stringify({ v: PROTOCOL_VERSION, type: 'shutdown' }),

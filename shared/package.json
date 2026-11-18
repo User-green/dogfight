@@ -1,0 +1,8 @@
+{
+  "name": "shared",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": { "./*": "./src/*.js" },
+  "scripts": { "test": "node --test test/", "bench": "node bench/codec-bench.mjs" }
+}

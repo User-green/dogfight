@@ -18,11 +18,8 @@ export const Kind = Object.freeze({
  * All arena objects (Ship, Bullet, Asteroid, etc.) inherit from this class (1 level deep).
  */
 export class Entity {
-  /** @type {number} Private static counter for auto-incrementing entity IDs */
-  static #nextId = 1;
-
-  /** @type {number} Private unique entity ID */
-  #id = Entity.#nextId++;
+  /** @type {number} Private entity ID; 0 = not assigned yet. The WORLD assigns ids (a global counter would leak state between worlds/runs). */
+  #id = 0;
 
   /**
    * @param {Object} options
@@ -32,6 +29,7 @@ export class Entity {
    * @param {number} [options.angle=0] Facing angle in radians
    * @param {number} [options.radius=10] Collision radius in logical units
    * @param {number} [options.maxSpeed=Infinity] Maximum speed clamp
+   * @param {number} [options.id] Explicit id (a client mirroring a server entity); default: assigned by World.spawn
    */
   constructor({
     kind = Kind.UNKNOWN,
@@ -40,7 +38,9 @@ export class Entity {
     angle = 0,
     radius = 10,
     maxSpeed = Infinity,
+    id,
   } = {}) {
+    if (id !== undefined) this.#id = id;
     this.kind = kind;
     this.pos = pos;
     this.vel = vel;
@@ -48,6 +48,12 @@ export class Entity {
     this.radius = radius;
     this.maxSpeed = maxSpeed;
     this.alive = true;
+  }
+
+  /** Called once by World.spawn. */
+  assignId(id) {
+    if (this.#id !== 0) throw new Error(`entity already has id ${this.#id}`);
+    this.#id = id;
   }
 
   /**

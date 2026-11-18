@@ -11,7 +11,7 @@ import { loadConfig } from '../src/config.js';
 const join = (o = {}) => JSON.stringify({ v: 1, type: 'join', room: 'alpha', name: 'Pilot', ...o });
 
 test('protocol: valid join / chat', () => {
-  assert.deepEqual(validate(join()), { ok: true, msg: { type: 'join', room: 'alpha', name: 'Pilot' } });
+  assert.deepEqual(validate(join()), { ok: true, msg: { type: 'join', room: 'alpha', name: 'Pilot', codec: 'json' } });
   assert.equal(validate(JSON.stringify({ v: 1, type: 'chat', text: 'hi' })).ok, true);
 });
 

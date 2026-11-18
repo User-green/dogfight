@@ -9,5 +9,10 @@
     "preview": "vite preview",
     "test": "node --test tests/"
   },
-  "devDependencies": { "vite": "^5.4.0" }
+  "devDependencies": {
+    "vite": "^5.4.0"
+  },
+  "dependencies": {
+    "shared": "*"
+  }
 }

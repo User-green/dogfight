@@ -13,13 +13,14 @@ export class Pickup extends Entity {
    * @param {Vector2} options.pos
    * @param {'SHIELD'|'RAPID_FIRE'} [options.type='SHIELD']
    */
-  constructor({ pos, type = 'SHIELD' } = {}) {
+  constructor({ pos, type = 'SHIELD', id } = {}) {
     super({
       kind: Kind.PICKUP,
       pos,
       vel: new Vector2(0, 0),
       radius: 12,
       maxSpeed: 0,
+      id,
     });
 
     this.type = type;

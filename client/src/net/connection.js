@@ -16,6 +16,7 @@ export class Connection extends EventTarget {
     this.maxMs = maxMs;
     this.WebSocketImpl = WebSocketImpl;
     this.status = 'idle'; // idle | connecting | open | reconnecting | closed
+    this.lastBytes = 0; // size of the frame being dispatched (the netgraph counts bytes in)
   }
 
   #setStatus(status, detail) {
@@ -29,6 +30,7 @@ export class Connection extends EventTarget {
     this.#closedByUser = false;
     this.#setStatus(this.#attempt === 0 ? 'connecting' : 'reconnecting', { attempt: this.#attempt });
     const ws = (this.#ws = new this.WebSocketImpl(this.url));
+    ws.binaryType = 'arraybuffer'; // binary snapshots arrive as ArrayBuffer, not Blob (Blob would need an async read)
     ws.onopen = () => {
       this.#attempt = 0;
       this.#setStatus('open');
@@ -36,6 +38,12 @@ export class Connection extends EventTarget {
       for (const m of this.#queue.splice(0)) ws.send(m); // flush what was queued while connecting
     };
     ws.onmessage = (e) => {
+      if (typeof e.data !== 'string') {
+        this.lastBytes = e.data.byteLength;
+        this.dispatchEvent(new CustomEvent('binary', { detail: e.data }));
+        return;
+      }
+      this.lastBytes = e.data.length;
       let msg;
       try {
         msg = JSON.parse(e.data);
@@ -69,6 +77,11 @@ export class Connection extends EventTarget {
     else this.#queue.push(data);
   }
 
+  /** Send a pre-encoded payload (input packet: string or ArrayBuffer). Dropped, not queued, while disconnected: stale inputs are useless. */
+  sendRaw(payload) {
+    if (this.#ws?.readyState === 1) this.#ws.send(payload);
+  }
+
   close() {
     this.#closedByUser = true;
     clearTimeout(this.#timer);
@@ -77,6 +90,8 @@ export class Connection extends EventTarget {
   }
 }
 
-export function defaultWsUrl() {
-  return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
+/** `extra` is a query-string source, e.g. {lag:100,jitter:30,drop:2}: the server's NetSim (ENABLE_NETSIM=1) reads it. */
+export function defaultWsUrl(extra = {}) {
+  const q = new URLSearchParams(Object.entries(extra).filter(([, v]) => v !== null && v !== undefined)).toString();
+  return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws${q ? `?${q}` : ''}`;
 }

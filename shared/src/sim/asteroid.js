@@ -26,11 +26,12 @@ export class Asteroid extends Entity {
    * @param {Vector2} [options.vel] Initial velocity
    * @param {number} [options.tier=3] 3 (Large), 2 (Medium), 1 (Small)
    */
-  constructor({ pos, vel, tier = 3 } = {}) {
+  constructor({ pos, vel, tier = 3, rng, id } = {}) {
+    if (typeof rng !== 'function') throw new TypeError('Asteroid needs a seeded rng (no Math.random in the sim)');
     const config = TIER_CONFIG[tier] || TIER_CONFIG[3];
     const initialVel = vel || Vector2.fromAngle(
-      Math.random() * TWO_PI,
-      config.speedMin + Math.random() * (config.speedMax - config.speedMin)
+      rng() * TWO_PI,
+      config.speedMin + rng() * (config.speedMax - config.speedMin)
     );
 
     super({
@@ -39,14 +40,15 @@ export class Asteroid extends Entity {
       vel: initialVel,
       radius: config.radius,
       maxSpeed: Infinity,
+      id,
     });
 
     this.tier = tier;
     this.scoreValue = config.score;
-    this.angularVelocity = (Math.random() - 0.5) * 2.0; // rad/s tumble
+    this.angularVelocity = (rng() - 0.5) * 2.0; // rad/s tumble
 
     // Generate jagged vector wireframe vertices once at spawn
-    this.vertices = this.#generatePolygonVertices(this.radius);
+    this.vertices = this.#generatePolygonVertices(this.radius, rng);
   }
 
   /**
@@ -54,13 +56,13 @@ export class Asteroid extends Entity {
    * @param {number} baseRadius
    * @returns {Array<{x: number, y: number}>}
    */
-  #generatePolygonVertices(baseRadius) {
+  #generatePolygonVertices(baseRadius, rng) {
     const count = 10;
     const vertices = [];
     for (let i = 0; i < count; i++) {
       const angle = (i / count) * TWO_PI;
       // Perturb radius by ±25% for a craggy asteroid look
-      const r = baseRadius * (0.75 + Math.random() * 0.5);
+      const r = baseRadius * (0.75 + rng() * 0.5);
       vertices.push({
         x: Math.cos(angle) * r,
         y: Math.sin(angle) * r,
@@ -83,7 +85,7 @@ export class Asteroid extends Entity {
    * Split this asteroid into two smaller ones when destroyed.
    * @returns {Asteroid[]} Children asteroids (empty array if tier was 1)
    */
-  split() {
+  split(rng) {
     if (this.tier <= 1) return [];
 
     const nextTier = this.tier - 1;
@@ -99,12 +101,14 @@ export class Asteroid extends Entity {
       pos: this.pos.clone(),
       vel: Vector2.fromAngle(angle1, boostSpeed),
       tier: nextTier,
+      rng,
     });
 
     const child2 = new Asteroid({
       pos: this.pos.clone(),
       vel: Vector2.fromAngle(angle2, boostSpeed),
       tier: nextTier,
+      rng,
     });
 
     return [child1, child2];

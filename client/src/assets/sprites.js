@@ -1,4 +1,4 @@
-import { Kind } from '../sim/entity.js';
+import { Kind } from 'shared/sim/entity';
 
 /**
  * Returns draw(ctx, entity). Uses the loaded sprite sheet when available,

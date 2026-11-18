@@ -5,8 +5,8 @@
 // - рендер — з інтерполяцією між попереднім і поточним станом
 // - HUD показує steps/s, frames/s і час кадру
 
-export function createLoop({ update, render }) {
-  const TIMESTEP = 1 / 60; // 60 оновлень за секунду (~16.67 мс)
+export function createLoop({ update, render, timestep = 1 / 60 }) {
+  const TIMESTEP = timestep; // за замовчуванням 60 оновлень/с; мережевий клієнт ставить 1/30 = крок сервера
   let lastTime = 0;
   let accumulator = 0;
   let running = false;

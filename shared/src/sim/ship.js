@@ -21,7 +21,7 @@ export class Ship extends Entity {
    * @param {Vector2} [options.pos] Initial position
    * @param {number} [options.angle=-Math.PI / 2] Initial angle (pointing UP)
    */
-  constructor({ pos = new Vector2(500, 500), angle = -Math.PI / 2 } = {}) {
+  constructor({ pos = new Vector2(500, 500), angle = -Math.PI / 2, id } = {}) {
     super({
       kind: Kind.SHIP,
       pos,
@@ -29,12 +29,15 @@ export class Ship extends Entity {
       angle,
       radius: 14, // circle collision boundary
       maxSpeed: MAX_SHIP_SPEED,
+      id,
     });
 
     this.cooldownTimer = 0;
     this.isThrusting = false;
     this.invulnTimer = 0; // seconds of damage immunity (after a hit, respawn, or shield)
     this.rapidTimer = 0; // seconds of rapid fire left
+    this.respawnTimer = 0; // > 0 while dead: counts down to respawn
+    this.score = 0;
   }
 
   /**
@@ -58,6 +61,11 @@ export class Ship extends Entity {
     } else {
       this.invulnTimer = 1.5; // short grace period so one asteroid cannot hit 60 times/s
     }
+  }
+
+  /** Mirror the server's hit points (a client-side copy of a server ship). */
+  syncHp(hp) {
+    this.#hp = hp;
   }
 
   /** Pickup effect: temporary damage immunity. */
@@ -179,7 +187,7 @@ export class Ship extends Entity {
     if (this.isThrusting) {
       ctx.beginPath();
       ctx.moveTo(-8, 0);
-      ctx.lineTo(-18 - Math.random() * 8, 0);
+      ctx.lineTo(-18 - 8 * Math.abs(Math.sin(this.pos.x * 0.9 + this.pos.y * 1.3)), 0); // cosmetic flicker, deterministic
       ctx.strokeStyle = '#00ffff';
       ctx.stroke();
     }

@@ -15,7 +15,8 @@ export class Explosion extends Entity {
    * @param {number} [options.ttl=0.6] Lifetime in seconds
    * @param {string} [options.color='#ffffff']
    */
-  constructor({ pos, particleCount = 12, ttl = 0.6, color = '#ffffff' } = {}) {
+  constructor({ pos, particleCount = 12, ttl = 0.6, color = '#ffffff', rng } = {}) {
+    if (typeof rng !== 'function') throw new TypeError('Explosion needs a seeded rng');
     super({
       kind: Kind.EXPLOSION,
       pos: pos.clone(),
@@ -31,14 +32,14 @@ export class Explosion extends Entity {
     // Generate radial burst particles
     this.particles = [];
     for (let i = 0; i < particleCount; i++) {
-      const angle = (i / particleCount) * TWO_PI + (Math.random() - 0.5) * 0.4;
-      const speed = 40 + Math.random() * 120;
+      const angle = (i / particleCount) * TWO_PI + (rng() - 0.5) * 0.4;
+      const speed = 40 + rng() * 120;
       this.particles.push({
         x: 0,
         y: 0,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
-        length: 2 + Math.random() * 3,
+        length: 2 + rng() * 3,
       });
     }
   }

@@ -15,17 +15,19 @@ export class Bullet extends Entity {
    * @param {number} [options.ttl=1.2] Lifespan in seconds before despawn
    * @param {number} [options.shooterId=null] ID of the entity that fired this bullet
    */
-  constructor({ pos, vel, ttl = 1.2, shooterId = null } = {}) {
+  constructor({ pos, vel, ttl = 1.2, shooterId = null, id } = {}) {
     super({
       kind: Kind.BULLET,
       pos,
       vel,
       radius: 2, // 2-unit radius hitbox
       maxSpeed: Infinity, // Bullets cruise at their initial launch speed
+      id,
     });
 
     this.ttl = ttl;
     this.shooterId = shooterId; // Prevents friendly-fire on self
+    this.fireSeq = 0; // seq of the input that fired it (set by World.step); lets the shooter match its predicted bullet
   }
 
   /**

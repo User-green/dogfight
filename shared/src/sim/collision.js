@@ -72,15 +72,15 @@ export function resolveCollisions(world, { onShipDestroyed } = {}) {
       asteroid.alive = false;
 
       // Award points
-      world.addScore(asteroid.scoreValue || 50);
+      world.addScore(asteroid.scoreValue || 50, bullet.shooterId);
       world.emit('hit', { kind: 'asteroid' });
       world.emit('exploded', { kind: 'asteroid', tier: asteroid.tier });
 
       // Spawn debris explosion
-      world.spawn(new Explosion({ pos: asteroid.pos, particleCount: 14, color: '#ffffff' }));
+      world.spawn(new Explosion({ pos: asteroid.pos, particleCount: 14, color: '#ffffff', rng: world.rng }));
 
       // Split into smaller asteroids if tier > 1
-      const fragments = asteroid.split();
+      const fragments = asteroid.split(world.rng);
       for (const fragment of fragments) {
         world.spawn(fragment);
       }
@@ -95,7 +95,7 @@ export function resolveCollisions(world, { onShipDestroyed } = {}) {
       world.emit('hit', { kind: 'ship' });
 
       // Spawn collision burst
-      world.spawn(new Explosion({ pos: ship.pos, particleCount: 20, color: '#ff3333' }));
+      world.spawn(new Explosion({ pos: ship.pos, particleCount: 20, color: '#ff3333', rng: world.rng }));
 
       if (!ship.alive) world.emit('exploded', { kind: 'ship' });
       if (!ship.alive && onShipDestroyed) {
@@ -107,8 +107,8 @@ export function resolveCollisions(world, { onShipDestroyed } = {}) {
     // 3. Ship vs Pickup
     if (ship && pickup && ship.alive && pickup.alive) {
       pickup.applyEffect(ship);
-      world.spawn(new Explosion({ pos: pickup.pos, particleCount: 12, color: '#00ff88' }));
-      world.addScore(250);
+      world.spawn(new Explosion({ pos: pickup.pos, particleCount: 12, color: '#00ff88', rng: world.rng }));
+      world.addScore(250, ship.id);
       world.emit('pickup', { type: pickup.type });
       continue;
     }

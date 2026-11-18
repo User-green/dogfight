@@ -1,13 +1,10 @@
 import { createLoop } from './loop.js';
 import { createInput } from './input.js';
-import { Vector2 } from './sim/vector.js';
-import { World } from './sim/world.js';
-import { Ship } from './sim/ship.js';
-import { Asteroid } from './sim/asteroid.js';
-import { Pickup } from './sim/pickup.js';
-import { Bullet } from './sim/bullet.js';
-import { HomingBehavior } from './sim/homing.js';
-import { Kind } from './sim/entity.js';
+import { Ship } from 'shared/sim/ship';
+import { TICK_DT } from 'shared/constants';
+import { codecs } from 'shared/codec/index';
+import { GameClient } from './net/gameclient.js';
+import { mountNetgraph } from './ui/netgraph.js';
 import { fetchJson, withRetry, loadAll } from './assets/loader.js';
 import { createAudio } from './assets/audio.js';
 import { createSpriteDrawer } from './assets/sprites.js';
@@ -100,79 +97,93 @@ async function loadWithScreen(audio) {
   }
 }
 
+/** URL switches for the experiments in the write-up: ?predict=0&reconcile=0&interp=0&delay=100&codec=json&lag=100&jitter=30&drop=2&breakdet=1 */
+const params = new URLSearchParams(location.search);
+const flag = (name, dflt = true) => (params.has(name) ? params.get(name) !== '0' : dflt);
+
+if (flag('breakdet', false)) {
+  // Determinism experiment, client only: the browser's copy of the ship physics drifts, the server's does not.
+  const original = Ship.prototype.update;
+  Ship.prototype.update = function (dt, input, arena) {
+    original.call(this, dt, input, arena);
+    this.vel.x += (Math.random() - 0.5) * 20 * dt;
+    this.vel.y += (Math.random() - 0.5) * 20 * dt;
+  };
+}
+
 function startGame({ room, playerName, assets, manifest, audio, net }) {
   const arena = { width: assets.arena.width, height: assets.arena.height };
   const input = createInput();
-  const world = new World();
-  debug.world = world;
+  const bus = new EventTarget(); // what the old local World's bus was: HUD + audio subscribe, the netcode dispatches
   const draw = createSpriteDrawer(assets.sprites, manifest.sprites.frames);
-  const hud = createHud(hudEl, world.bus);
-  audio.attach(world.bus); // audio subscribes to the sim; the sim never imports audio
+  const hud = createHud(hudEl, bus);
+  audio.attach(bus);
 
-  const playerShip = new Ship({ pos: new Vector2(arena.width / 2, arena.height / 2) });
-  world.spawn(playerShip);
+  let client = null;
+  let lastScore = 0;
+  let drawn = [];
+  const conn = net.conn;
 
-  function spawnWave(count) {
-    for (let i = 0; i < count; i++) {
-      let pos;
-      do pos = new Vector2(Math.random() * arena.width, Math.random() * arena.height);
-      while (pos.sub(playerShip.pos).length() < assets.arena.shipSafeRadius);
-      world.spawn(new Asteroid({ pos, tier: 3 }));
-    }
-  }
-  spawnWave(room.asteroids);
-  world.spawn(new Pickup({ pos: new Vector2(250, 250), type: 'SHIELD' }));
-  world.spawn(new Pickup({ pos: new Vector2(750, 750), type: 'RAPID_FIRE' }));
-
-  function fireHomingMissile() {
-    if (!playerShip.alive) return;
-    const heading = Vector2.fromAngle(playerShip.angle);
-    const missile = new Bullet({
-      pos: playerShip.pos.add(heading.scale(20)),
-      vel: playerShip.vel.add(heading.scale(400)),
-      ttl: 3.5,
-      shooterId: playerShip.id,
-    });
-    missile.homing = new HomingBehavior({
-      target: () => {
-        let nearest = null;
-        let best = Infinity;
-        for (const a of world.ofKind(Kind.ASTEROID)) {
-          const d = a.pos.sub(missile.pos).lengthSq();
-          if (d < best) [best, nearest] = [d, a];
-        }
-        return nearest;
+  // (Re)created on every welcome: after a reconnect the server gives us a NEW ship and a fresh tick counter.
+  function onWelcome(w) {
+    const codecName = w.codec in codecs ? w.codec : 'json';
+    client = new GameClient({
+      shipId: w.shipId,
+      arena: w.arena ?? arena,
+      codec: codecs[codecName],
+      send: (payload) => conn.sendRaw(payload),
+      config: {
+        predict: flag('predict'),
+        reconcile: flag('reconcile'),
+        interpolate: flag('interp'),
+        ...(params.has('delay') ? { interpDelayMs: Number(params.get('delay')) } : {}),
       },
-      turnRate: 4.5,
     });
-    world.spawn(missile);
-    world.emit('fired', { shooterId: playerShip.id });
+    client.addEventListener('fired', () => bus.dispatchEvent(new CustomEvent('fired')));
+    debug.client = client;
+    lastScore = 0;
   }
-  window.addEventListener('keydown', (e) => e.code === 'KeyH' && fireHomingMissile());
+  if (net.welcome) onWelcome(net.welcome);
+  conn.addEventListener('welcome', (e) => onWelcome(e.detail));
 
-  function update(dt) {
-    world.step(dt, arena, input.getState());
-    let n = 0;
-    for (const _ of world.ofKind(Kind.ASTEROID)) n++;
-    if (n === 0) spawnWave(room.asteroids + 2);
+  const onSnap = (decoded) => {
+    if (!client) return;
+    client.onSnapshot(decoded, conn.lastBytes);
+    const mine = decoded.ents.find((e) => e.id === client.shipId);
+    if (mine && mine.score > lastScore) bus.dispatchEvent(new CustomEvent('scoreChanged', { detail: { score: mine.score, delta: mine.score - lastScore } }));
+    if (mine) lastScore = mine.score;
+  };
+  conn.addEventListener('snapshot', (e) => client?.codec === codecs.json && Array.isArray(e.detail.ents) && onSnap(e.detail));
+  conn.addEventListener('binary', (e) => client?.codec === codecs.binary && onSnap(codecs.binary.decodeSnapshot(e.detail)));
+  conn.addEventListener('pong', (e) => client?.onPong(e.detail.t));
+  setInterval(() => client && conn.send(client.pingPayload()), 1000);
+
+  const netgraph = mountNetgraph(document.getElementById('netgraph'), () => client);
+
+  function update() {
+    client?.step(input.getState());
   }
 
-  function render(_alpha, metrics) {
+  function render(alpha, metrics) {
     ctx.fillStyle = '#050505';
     ctx.fillRect(0, 0, SIZE, SIZE);
-    world.render(ctx, draw);
+    if (client) {
+      drawn = client.frame(alpha);
+      for (const e of drawn) if (e.alive) draw(ctx, e);
+    }
+    const ship = client?.localView;
     hud.render([
       `${playerName} @ ${room.name} | FPS: ${metrics.fps} | UPS: ${metrics.stepsPerSecond}`,
-      `Entities: ${world.size} | Score: ${world.score}`,
-      `HP: ${playerShip.alive ? '♥'.repeat(playerShip.hp) : 'RESPAWNING...'} | Net: ${net.state.status} | Players: ${net.state.roster.map((p) => p.name).join(', ')}`,
-      'W/Up thrust, A/D turn, Space fire, H homing',
+      `Entities: ${drawn.length} | Score: ${lastScore}`,
+      `HP: ${ship?.alive ? '♥'.repeat(ship.hp) : 'RESPAWNING...'} | Net: ${conn.status} | Players: ${net.state.roster.map((p) => p.name).join(', ')}`,
+      'W/Up thrust, A/D turn, Space fire, [ ] interp delay',
     ]);
+    netgraph.render();
   }
 
   debug.phase = 'playing';
-  debug.ship = playerShip;
   debug.input = input;
-  createLoop({ update, render }).start();
+  createLoop({ update, render, timestep: TICK_DT }).start();
 }
 
 async function boot() {
@@ -200,12 +211,15 @@ async function boot() {
   view.hide();
 
   // Real server connection: join on every (re)connect, chat + roster over the socket.
-  const conn = new Connection({ url: defaultWsUrl() });
+  const conn = new Connection({
+    url: defaultWsUrl({ lag: params.get('lag'), jitter: params.get('jitter'), drop: params.get('drop') }),
+  });
   const state = mountChat(document.getElementById('chat'), conn);
   debug.conn = conn;
   debug.net = { state };
-  conn.connect({ v: 1, type: 'join', room: room.id, name: playerName });
-  startGame({ room, playerName, assets, manifest, audio, net: { conn, state } });
+  conn.connect({ v: 1, type: 'join', room: room.id, name: playerName, codec: params.get('codec') === 'json' ? 'json' : 'binary' });
+  startGame({ room, playerName, assets, manifest, audio, net: { conn, state, welcome: null } });
+
 }
 
 boot();

@@ -8,6 +8,7 @@ import { RoomManager } from './rooms.js';
 import { attachWs } from './ws.js';
 import { serveStatic } from './static.js';
 import { startMatchLog } from './log/matchlog.js';
+import { Match } from './match.js';
 import { validateCreateRoom, out } from './protocol.js';
 import { CloseCode } from './protocol.js';
 
@@ -36,12 +37,25 @@ export function createGameServer(config) {
   const stats = {
     connections: 0,
     rejections: {},
+    bytesIn: 0,
+    bytesOut: 0,
     startedAt: Date.now(),
     reject(reason) {
       this.rejections[reason] = (this.rejections[reason] ?? 0) + 1;
     },
   };
   const logs = new Map(); // roomId -> active match log
+  const matches = new Map(); // roomId -> Match (the authoritative simulation); runs only while the room has players
+
+  const matchFor = (room) => {
+    let m = matches.get(room.id);
+    if (!m) {
+      m = new Match({ asteroids: room.asteroids });
+      matches.set(room.id, m);
+      m.start();
+    }
+    return m;
+  };
 
   // Match log lifecycle: starts when the first player joins, ends (and flushes) when the room empties.
   manager.on('created', (room) => {
@@ -52,6 +66,8 @@ export function createGameServer(config) {
       pending.then((log) => log.done.catch((err) => console.error('match log failed:', err)));
     });
     room.on('empty', () => {
+      matches.get(room.id)?.stop();
+      matches.delete(room.id);
       const pending = logs.get(room.id);
       logs.delete(room.id);
       pending?.then((log) => log.stop()).catch((err) => console.error('match log stop failed:', err));
@@ -81,7 +97,10 @@ export function createGameServer(config) {
     if (pathname === '/health') {
       return json(res, 200, { status: 'ok', uptime: process.uptime(), rss: process.memoryUsage.rss(), connections: stats.connections, rooms: manager.list().length });
     }
-    if (pathname === '/api/stats') return json(res, 200, { ...stats, rss: process.memoryUsage.rss() });
+    if (pathname === '/api/stats') {
+      const perMatch = Object.fromEntries([...matches].map(([id, m]) => [id, m.snapshotStats()]));
+      return json(res, 200, { ...stats, rss: process.memoryUsage.rss(), matches: perMatch });
+    }
 
     if (pathname === '/api/rooms') {
       if (req.method === 'GET') return json(res, 200, { rooms: manager.list() });
@@ -135,7 +154,7 @@ export function createGameServer(config) {
   }
 
   const wss = new WebSocketServer({ server: httpServer, path: '/ws', maxPayload: config.maxPayload });
-  attachWs(wss, manager, config, stats);
+  attachWs(wss, manager, config, stats, matchFor);
 
   return {
     httpServer,
@@ -155,6 +174,8 @@ export function createGameServer(config) {
           socket.close(CloseCode.GOING_AWAY, 'server-shutdown');
         }
       }
+      for (const m of matches.values()) m.stop();
+      matches.clear();
       const pending = [...logs.values()];
       logs.clear();
       await Promise.all(pending.map((p) => p.then((log) => log.stop()).catch(() => {})));

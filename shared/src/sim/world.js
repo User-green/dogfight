@@ -1,6 +1,10 @@
 import { Kind } from './entity.js';
 import { resolveCollisions } from './collision.js';
 import { Vector2 } from './vector.js';
+import { mulberry32 } from '../rng.js';
+
+const NO_INPUT = Object.freeze({});
+const RESPAWN_SECONDS = 2.0;
 
 /**
  * World: The central entity manager.
@@ -14,20 +18,30 @@ export class World {
   /** @type {number[]} IDs marked for deferred deletion at the end of the tick */
   #deadList = [];
 
+  /** Per-world id counter: two worlds fed the same seed and inputs hand out the same ids. */
+  #nextId = 1;
+
   /** Event bus: the sim dispatches, UI/audio subscribe. The sim imports neither. */
   bus = new EventTarget();
 
-  constructor() {
+  /**
+   * @param {Object} [options]
+   * @param {number} [options.seed=1] Seed for the world's PRNG: the ONLY source of randomness in the sim.
+   */
+  constructor({ seed = 1 } = {}) {
     this.score = 0;
-    this.respawnTimer = 0;
+    this.tick = 0;
+    this.rng = mulberry32(seed);
   }
 
   emit(type, detail = {}) {
     this.bus.dispatchEvent(new CustomEvent(type, { detail }));
   }
 
-  addScore(delta) {
+  addScore(delta, shipId) {
     this.score += delta;
+    const ship = shipId === undefined ? undefined : this.#entities.get(shipId);
+    if (ship?.kind === Kind.SHIP) ship.score += delta;
     this.emit('scoreChanged', { score: this.score, delta });
   }
 
@@ -37,8 +51,14 @@ export class World {
    * @returns {import('./entity.js').Entity}
    */
   spawn(entity) {
+    if (entity.id === 0) entity.assignId(this.#nextId++);
     this.#entities.set(entity.id, entity);
     return entity;
+  }
+
+  /** Remove an entity immediately. Only call between ticks (a player left), never while iterating. */
+  remove(id) {
+    this.#entities.delete(id);
   }
 
   /**
@@ -113,21 +133,22 @@ export class World {
 
   /**
    * Advance the simulation by dt.
-   * 1. Updates all entities (passing input and firing the ship).
+   * 1. Updates all entities (each ship gets ITS OWN input; a ship fires if its input says so).
    * 2. Resolves circle-circle collisions.
-   * 3. Handles ship respawn cooldown.
+   * 3. Counts down each dead ship's respawn timer.
    * 4. Runs deferred despawn sweep (O(k)).
    * @param {number} dt Delta time in seconds
    * @param {{ width: number, height: number }} arena Dimensions
-   * @param {Object} [input] Player input state
+   * @param {Map<number, Object>|Object} [inputs] Map shipId -> input, or ONE input applied to every ship
    */
-  step(dt, arena, input = {}) {
-    let playerShip = null;
+  step(dt, arena, inputs = NO_INPUT) {
+    const perShip = inputs instanceof Map;
+    const ships = [];
 
     // 1. Update entities
     for (const entity of this.#entities.values()) {
-      // Remember the ship even while dead, so the respawn step below can find it
-      if (entity.kind === Kind.SHIP) playerShip = entity;
+      // Remember ships even while dead, so the respawn step below can find them
+      if (entity.kind === Kind.SHIP) ships.push(entity);
       if (!entity.alive) continue;
 
       // Composition: update homing behavior if attached to any entity (bullet, asteroid, etc.)
@@ -136,9 +157,11 @@ export class World {
       }
 
       if (entity.kind === Kind.SHIP) {
+        const input = perShip ? (inputs.get(entity.id) ?? NO_INPUT) : inputs;
         entity.update(dt, input, arena);
         if (input.fire) {
-          entity.fire(this);
+          const bullet = entity.fire(this);
+          if (bullet && input.seq !== undefined) bullet.fireSeq = input.seq; // lets the shooter match its predicted bullet
         }
       } else {
         entity.update(dt, arena);
@@ -148,22 +171,21 @@ export class World {
     // 2. Resolve collisions
     resolveCollisions(this, {
       onShipDestroyed: (ship) => {
-        this.respawnTimer = 2.0; // 2 seconds until respawn
+        ship.respawnTimer = RESPAWN_SECONDS;
       },
     });
 
-    // 3. Handle player respawn
-    if (playerShip && !playerShip.alive) {
-      if (this.respawnTimer > 0) {
-        this.respawnTimer -= dt;
-        if (this.respawnTimer <= 0) {
-          playerShip.respawn(this.randomSafeSpot(arena, 200));
-        }
+    // 3. Handle respawns
+    for (const ship of ships) {
+      if (!ship.alive && ship.respawnTimer > 0) {
+        ship.respawnTimer -= dt;
+        if (ship.respawnTimer <= 0) ship.respawn(this.randomSafeSpot(arena, 200));
       }
     }
 
     // 4. Sweep dead entities (O(k))
     this.sweep();
+    this.tick++;
   }
 
   /**
@@ -172,7 +194,7 @@ export class World {
    */
   randomSafeSpot(arena, minDist) {
     for (let attempt = 0; attempt < 50; attempt++) {
-      const p = new Vector2(Math.random() * arena.width, Math.random() * arena.height);
+      const p = new Vector2(this.rng() * arena.width, this.rng() * arena.height);
       let safe = true;
       for (const a of this.ofKind(Kind.ASTEROID)) {
         if (a.pos.sub(p).length() < minDist) {

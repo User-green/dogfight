@@ -27,6 +27,9 @@ export function loadConfig(env = process.env, overrides = {}) {
     heartbeatMs: int(env, 'HEARTBEAT_MS', 15000, { min: 10 }),
     slowClientBytes: int(env, 'SLOW_CLIENT_BYTES', 64 * 1024, { min: 1 }),
     maxBodyBytes: int(env, 'MAX_BODY_BYTES', 4096, { min: 16 }),
+    inputPerSecond: int(env, 'INPUT_PER_SECOND', 45, { min: 1 }), // inputs arrive at 30/s; headroom for bursts
+    inputBurst: int(env, 'INPUT_BURST', 90, { min: 1 }),
+    allowNetsim: env.ENABLE_NETSIM === '1', // latency/loss injector: dev and tests only
     ...overrides,
   };
   return Object.freeze(cfg);
