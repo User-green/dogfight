@@ -1,4 +1,4 @@
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import type { EventEmitter } from 'node:events';
@@ -66,7 +66,7 @@ function client(url: string) {
 
 test('HTTP: /health, rooms API, validation, body cap', async (t) => {
   const s = await start();
-  t.after(() => s.server.stop());
+  t.onTestFinished(() => s.server.stop());
   const health = (await (await fetch(`${s.base}/health`)).json()) as { status: string };
   assert.equal(health.status, 'ok');
   const rooms = (await (await fetch(`${s.base}/api/rooms`)).json()) as { rooms: { id: string }[] };
@@ -84,7 +84,7 @@ test('HTTP: /health, rooms API, validation, body cap', async (t) => {
 
 test('HTTP: static files, MIME, caching, path traversal guard', async (t) => {
   const s = await start();
-  t.after(() => s.server.stop());
+  t.onTestFinished(() => s.server.stop());
   const index = await fetch(`${s.base}/`);
   assert.equal(index.status, 200);
   assert.match(index.headers.get('content-type') ?? '', /text\/html/);
@@ -103,7 +103,7 @@ test('HTTP: static files, MIME, caching, path traversal guard', async (t) => {
 
 test('WS: two clients join, see roster and each other chat', async (t) => {
   const s = await start();
-  t.after(() => s.server.stop());
+  t.onTestFinished(() => s.server.stop());
   const a = client(s.ws), b = client(s.ws);
   await Promise.all([a.open(), b.open()]);
   a.send({ type: 'join', room: 'alpha', name: 'Ann' });
@@ -121,7 +121,7 @@ test('WS: two clients join, see roster and each other chat', async (t) => {
 
 test('WS: abuse is closed with the right code', async (t) => {
   const s = await start({ joinTimeoutMs: 150, msgBurst: 5, msgPerSecond: 1 });
-  t.after(() => s.server.stop());
+  t.onTestFinished(() => s.server.stop());
 
   const noJoin = client(s.ws); await noJoin.open();
   assert.equal((await noJoin.closed()).code, 4001, 'join timeout');
@@ -151,7 +151,7 @@ test('WS: abuse is closed with the right code', async (t) => {
 
 test('WS: room player cap', async (t) => {
   const s = await start({ maxPlayersPerRoom: 1 });
-  t.after(() => s.server.stop());
+  t.onTestFinished(() => s.server.stop());
   const a = client(s.ws); await a.open();
   a.send({ type: 'join', room: 'alpha', name: 'A' });
   await a.next('welcome');
@@ -162,7 +162,7 @@ test('WS: room player cap', async (t) => {
 
 test('WS: heartbeat terminates a socket that never answers pings', async (t) => {
   const s = await start({ heartbeatMs: 40 });
-  t.after(() => s.server.stop());
+  t.onTestFinished(() => s.server.stop());
   const c = client(s.ws); await c.open();
   c.socket.pong = () => {}; // never reply
   (c.socket as unknown as { _receiver: EventEmitter })._receiver.removeAllListeners('ping'); // private ws field; the only cast in the tests, there is no public API for this // suppress ws's automatic pong
@@ -175,7 +175,7 @@ test('WS: heartbeat terminates a socket that never answers pings', async (t) => 
 
 test('match log: events are written as NDJSON and flushed when the room empties; replay streams it', async (t) => {
   const s = await start();
-  t.after(() => s.server.stop());
+  t.onTestFinished(() => s.server.stop());
   const a = client(s.ws); await a.open();
   a.send({ type: 'join', room: 'bravo', name: 'Logger' });
   await a.next('welcome');

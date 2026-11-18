@@ -1,4 +1,4 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { codecs } from '../src/codec/index.ts';
 import * as binary from '../src/codec/binary.ts';

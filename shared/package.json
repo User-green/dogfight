@@ -7,9 +7,10 @@
     "./*": "./src/*.ts"
   },
   "scripts": {
-    "test": "node --test test/",
+    "test": "vitest run",
     "bench": "node bench/codec-bench.ts",
-    "typecheck": "tsc --noEmit -p ."
+    "typecheck": "tsc --noEmit -p .",
+    "coverage": "vitest run --coverage"
   },
   "dependencies": {
     "zod": "^4.6.7"

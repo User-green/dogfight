@@ -1,5 +1,5 @@
 // Lab 5: the websocket path of the netcode (input in, snapshots out) against a real server, JSON and binary.
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { mkdtemp } from 'node:fs/promises';
@@ -64,7 +64,7 @@ function ofType<T extends ServerMessage['type']>(msgs: ServerMessage[], type: T)
 
 test('JSON: join -> welcome with shipId, snapshots carry ack, input advances ack', async (t) => {
   const s = await start();
-  t.after(() => s.server.stop());
+  t.onTestFinished(() => s.server.stop());
   const c = raw(s.url);
   await c.open();
   c.join('json');
@@ -82,7 +82,7 @@ test('JSON: join -> welcome with shipId, snapshots carry ack, input advances ack
 
 test('binary: snapshots are binary frames, a 22-byte input packet is accepted and acked', async (t) => {
   const s = await start();
-  t.after(() => s.server.stop());
+  t.onTestFinished(() => s.server.stop());
   const c = raw(s.url);
   await c.open();
   c.join('binary');
@@ -100,7 +100,7 @@ test('binary: snapshots are binary frames, a 22-byte input packet is accepted an
 
 test('bad input: a garbage binary frame closes the socket with BAD_PROTOCOL (4000)', async (t) => {
   const s = await start();
-  t.after(() => s.server.stop());
+  t.onTestFinished(() => s.server.stop());
   const c = raw(s.url);
   await c.open();
   c.join('binary');
@@ -112,7 +112,7 @@ test('bad input: a garbage binary frame closes the socket with BAD_PROTOCOL (400
 
 test('binary frame before join closes the socket (4000)', async (t) => {
   const s = await start();
-  t.after(() => s.server.stop());
+  t.onTestFinished(() => s.server.stop());
   const c = raw(s.url);
   await c.open();
   c.socket.send(codecs.binary.encodeInputPacket(pkt(keys(1))));
@@ -122,7 +122,7 @@ test('binary frame before join closes the socket (4000)', async (t) => {
 
 test('input flood is cut off by its own token bucket (RATE_LIMIT 4002)', async (t) => {
   const s = await start({ inputBurst: 20, inputPerSecond: 5 });
-  t.after(() => s.server.stop());
+  t.onTestFinished(() => s.server.stop());
   const c = raw(s.url);
   await c.open();
   c.join('json');
@@ -135,7 +135,7 @@ test('input flood is cut off by its own token bucket (RATE_LIMIT 4002)', async (
 test('netsim: ?lag= delays the pong when ENABLE_NETSIM is on, and is ignored when off', async (t) => {
   const measure = async (allow: boolean) => {
     const s = await start({ allowNetsim: allow });
-    t.after(() => s.server.stop());
+    t.onTestFinished(() => s.server.stop());
     const c = raw(`${s.url}?lag=200`);
     await c.open();
     c.join('json');

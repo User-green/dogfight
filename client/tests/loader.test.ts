@@ -1,4 +1,4 @@
-import test from 'node:test';
+import { test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -8,7 +8,7 @@ import { fetchJson, withRetry, loadAll, HttpError } from '../src/assets/loader.t
 let server: http.Server;
 let base = '';
 let hits500 = 0;
-test.before(async () => {
+beforeAll(async () => {
   server = http.createServer((req, res) => {
     const url = req.url ?? '';
     const m = /^\/slow\/(\d+)/.exec(url);
@@ -22,7 +22,7 @@ test.before(async () => {
   await new Promise<void>((r) => server.listen(0, r));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
-test.after(() => server.close());
+afterAll(() => server.close());
 const noSleep = async () => {};
 
 test('fetchJson: 404 rejects with HttpError (fetch alone would NOT)', async () => {
