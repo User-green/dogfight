@@ -21,7 +21,7 @@ def check(name, cond, extra=''):
 
 def start_server():
     env = dict(os.environ, PORT=str(PORT), HOST='127.0.0.1', STATIC_DIR=os.path.join(ROOT, 'client/dist'), LOG_DIR=LOGS, ENABLE_NETSIM='1')
-    p = subprocess.Popen(['node', os.path.join(ROOT, 'server/src/index.js')], env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    p = subprocess.Popen(['node', os.path.join(ROOT, 'server/src/index.ts')], env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     for _ in range(50):
         try: urllib.request.urlopen(BASE + 'health', timeout=0.5); return p
         except Exception: time.sleep(0.1)

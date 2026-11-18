@@ -18,7 +18,7 @@ def check(name, cond, extra=''):
 
 def start_server():
     env = dict(os.environ, PORT=str(PORT), HOST='127.0.0.1', STATIC_DIR=os.path.join(ROOT, 'client/dist'), LOG_DIR=LOGS)
-    p = subprocess.Popen(['node', os.path.join(ROOT, 'server/src/index.js')], env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    p = subprocess.Popen(['node', os.path.join(ROOT, 'server/src/index.ts')], env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     for _ in range(50):
         try: urllib.request.urlopen(BASE + 'health', timeout=0.5); return p
         except Exception: time.sleep(0.1)
@@ -64,7 +64,7 @@ try:
     check('chat reaches the other window', wait(d2, lambda: 'Ann: hello from Ann' in d2.find_element(By.ID, 'chat-log').text))
     check('chat echoed to sender too', wait(d1, lambda: 'Ann: hello from Ann' in d1.find_element(By.ID, 'chat-log').text))
     # typing in chat must not steer the ship
-    check('typing in chat does not thrust the ship', js(d1, 'return window.__lab3.ship.isThrusting') is False)
+    check('typing in chat does not thrust the ship', js(d1, 'return window.__lab3.client.ship.isThrusting') is False)
     # XSS: chat text is rendered as text
     box.send_keys('<img src=x onerror=window.__pwned=1>'); box.send_keys(Keys.ENTER)
     time.sleep(0.5)

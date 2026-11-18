@@ -3,6 +3,15 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "exports": { "./*": "./src/*.js" },
-  "scripts": { "test": "node --test test/", "bench": "node bench/codec-bench.mjs" }
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "test": "node --test test/",
+    "bench": "node bench/codec-bench.ts",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  }
 }

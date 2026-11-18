@@ -12,9 +12,16 @@
     "dev:client": "npm run dev -w client",
     "build": "npm run build -w client",
     "start": "npm run start -w server",
-    "test": "npm test -w shared -w server -w client"
+    "test": "npm test -w shared -w server -w client",
+    "typecheck": "npm run typecheck -w shared -w server -w client",
+    "check": "npm run typecheck && npm test"
   },
   "engines": {
     "node": ">=22"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/ws": "^8.18.2",
+    "typescript": "^7.0.2"
   }
 }

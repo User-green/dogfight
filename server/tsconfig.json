@@ -1,0 +1,6 @@
+{
+  "extends": "../tsconfig.base.json",
+  // DOM lib: only for the TYPE names (CanvasRenderingContext2D) that shared/sim render() signatures mention. The server never draws.
+  "compilerOptions": { "types": ["node"], "lib": ["ES2023", "DOM"] },
+  "include": ["src", "test"]
+}
