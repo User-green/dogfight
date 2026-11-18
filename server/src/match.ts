@@ -8,9 +8,10 @@ import { Vector2 } from 'shared/sim/vector';
 import { snapshotEntities } from 'shared/state';
 import { toShipInput, type Input, type InputPacket, type Snapshot } from 'shared/protocol';
 import type { ShipInput } from 'shared/sim/ship';
-import { asSeq, type EntityId, type Seq } from 'shared/types';
+import { asSeq, asTick, type EntityId, type Seq } from 'shared/types';
 import { ARENA, TICK_DT, TICK_MS, MAX_INPUT_BACKLOG } from 'shared/constants';
 import { Kind } from 'shared/sim/entity';
+import { Bot, BotSeat, type PlayerInput } from './bot.ts';
 
 const SAFE_RADIUS = 200;
 const PICKUP_RESPAWN_S = 15;
@@ -63,6 +64,8 @@ export class Match {
   readonly world: World;
   waveSize: number;
   readonly players = new Map<string, MatchPlayer>();
+  /** AI players: ordinary MatchPlayers whose inputs come from a brain instead of a socket. */
+  readonly bots = new Map<string, BotSeat>();
   timer: TimerHandle | null = null;
   nextAt = 0;
   pickupTimer = 0;
@@ -136,8 +139,33 @@ export class Match {
     }
   }
 
+  addBot(brain: PlayerInput = new Bot()): string {
+    const id = `bot-${++this.#botCount}`;
+    this.addPlayer(id, `Bot ${this.#botCount}`, () => {});
+    this.bots.set(id, new BotSeat(id, brain));
+    return id;
+  }
+
+  /** Remove up to `count` bots (all if omitted); returns how many went. */
+  removeBots(count = Infinity): number {
+    let removed = 0;
+    for (const id of [...this.bots.keys()]) {
+      if (removed >= count) break;
+      this.bots.delete(id);
+      this.removePlayer(id);
+      removed++;
+    }
+    return removed;
+  }
+
+  #botCount = 0;
+
   /** One authoritative step: consume one input per player, step the world, broadcast a snapshot. */
   tickOnce(): void {
+    for (const seat of this.bots.values()) {
+      const p = this.players.get(seat.playerId);
+      if (p) this.input(seat.playerId, { tick: asTick(this.world.tick), inputs: [seat.nextInput(this.world, p.ship)] }); // same path as a socket
+    }
     const inputs = new Map<EntityId, ShipInput>();
     for (const p of this.players.values()) {
       const next = p.queue.shift();

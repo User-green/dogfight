@@ -124,6 +124,33 @@ export function createGameServer(config: ServerConfig) {
       return json(res, 405, { error: 'method-not-allowed' });
     }
 
+    const botsRoute = /^\/api\/rooms\/([\w-]+)\/bots$/.exec(pathname);
+    if (botsRoute) {
+      const room = manager.get(botsRoute[1] ?? '');
+      if (!room) return json(res, 404, { error: 'no-such-room' });
+      if (req.method === 'POST') {
+        let body: unknown;
+        try {
+          body = JSON.parse(await readBody(req, config.maxBodyBytes));
+        } catch (err: unknown) {
+          if (err instanceof BodyTooLarge) throw err;
+          return json(res, 400, { error: 'bad-json' });
+        }
+        const count = typeof body === 'object' && body !== null && 'count' in body ? body.count : undefined;
+        if (typeof count !== 'number' || !Number.isInteger(count) || count < 1 || count > config.maxBots) return json(res, 400, { error: 'bad-count' });
+        const match = matchFor(room);
+        if (match.bots.size + count > config.maxBots) return json(res, 409, { error: 'too-many-bots' });
+        for (let i = 0; i < count; i++) match.addBot();
+        return json(res, 201, { room: room.id, bots: match.bots.size });
+      }
+      if (req.method === 'DELETE') {
+        const match = matches.get(room.id);
+        const removed = match?.removeBots() ?? 0;
+        return json(res, 200, { room: room.id, removed });
+      }
+      return json(res, 405, { error: 'method-not-allowed' });
+    }
+
     if (pathname === '/api/replays' && req.method === 'GET') {
       const files = await readdir(config.logDir).catch(() => []);
       return json(res, 200, { replays: files.filter((f) => f.endsWith('.ndjson')).map((f) => f.replace(/\.ndjson$/, '')) });

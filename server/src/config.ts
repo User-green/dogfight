@@ -29,6 +29,7 @@ const ENV_NAMES = {
   inputPerSecond: 'INPUT_PER_SECOND',
   inputBurst: 'INPUT_BURST',
   allowNetsim: 'ENABLE_NETSIM',
+  maxBots: 'MAX_BOTS',
 } as const;
 
 const ConfigSchema = z.object({
@@ -49,6 +50,7 @@ const ConfigSchema = z.object({
   inputPerSecond: intVar(45, { min: 1 }), // inputs arrive at 30/s; headroom for bursts
   inputBurst: intVar(90, { min: 1 }),
   allowNetsim: flagVar, // latency/loss injector: dev and tests only
+  maxBots: intVar(16), // per room; the bots endpoint is unauthenticated, so this is its only brake (0 disables it)
 });
 
 export type ServerConfig = Readonly<z.output<typeof ConfigSchema>>;
