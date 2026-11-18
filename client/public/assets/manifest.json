@@ -1,0 +1,74 @@
+{
+  "sprites": {
+    "url": "/assets/sprites.svg",
+    "required": false,
+    "frames": {
+      "ship": [
+        0,
+        0,
+        128,
+        128
+      ],
+      "shipThrust": [
+        128,
+        0,
+        128,
+        128
+      ],
+      "bullet": [
+        256,
+        0,
+        128,
+        128
+      ],
+      "pickupShield": [
+        384,
+        0,
+        128,
+        128
+      ],
+      "pickupRapid": [
+        512,
+        0,
+        128,
+        128
+      ],
+      "asteroid0": [
+        0,
+        128,
+        128,
+        128
+      ],
+      "asteroid1": [
+        128,
+        128,
+        128,
+        128
+      ],
+      "asteroid2": [
+        256,
+        128,
+        128,
+        128
+      ]
+    }
+  },
+  "sounds": {
+    "shoot": {
+      "url": "/assets/sounds/shoot.wav",
+      "required": false
+    },
+    "hit": {
+      "url": "/assets/sounds/hit.wav",
+      "required": false
+    },
+    "explosion": {
+      "url": "/assets/sounds/explosion.wav",
+      "required": false
+    }
+  },
+  "arena": {
+    "url": "/assets/arena.json",
+    "required": true
+  }
+}
