@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net';
 import { createReadStream } from 'node:fs';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
+import { performance } from 'node:perf_hooks';
 import { pipeline } from 'node:stream/promises';
 import { WebSocketServer } from 'ws';
 import { RoomManager, type Room } from './rooms.ts';
@@ -100,7 +101,9 @@ export function createGameServer(config: ServerConfig) {
     }
     if (pathname === '/api/stats') {
       const perMatch = Object.fromEntries([...matches].map(([id, m]) => [id, m.snapshotStats()]));
-      return json(res, 200, { ...stats, rss: process.memoryUsage.rss(), matches: perMatch });
+      const mem = process.memoryUsage();
+      const elu = performance.eventLoopUtilization();
+      return json(res, 200, { ...stats, rss: mem.rss, heapUsed: mem.heapUsed, elu: Math.round(elu.utilization * 1000) / 1000, matches: perMatch });
     }
 
     if (pathname === '/api/rooms') {

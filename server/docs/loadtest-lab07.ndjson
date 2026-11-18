@@ -1,0 +1,5 @@
+{"n":8,"open":8,"seconds":10.169,"tickMsP99":4.251,"tickMaxMs":11.596,"elu":0.089,"rssMB":121,"bytesPerSec":2327091}
+{"n":32,"open":32,"seconds":10.22,"tickMsP99":9.414,"tickMaxMs":31.141,"elu":0.232,"rssMB":131,"bytesPerSec":36755792}
+{"n":64,"open":64,"seconds":10.49,"tickMsP99":31.303,"tickMaxMs":82.68,"elu":0.671,"rssMB":151,"bytesPerSec":141991150}
+{"n":128,"open":128,"seconds":11.302,"tickMsP99":131.022,"tickMaxMs":178.499,"elu":0.797,"rssMB":226,"bytesPerSec":152312093}
+done
