@@ -3,3 +3,5 @@ dist/
 .vite/
 logs/
 .env
+.e2e-logs/
+test-results/

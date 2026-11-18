@@ -9,7 +9,7 @@ import { codecs } from 'shared/codec/index';
 import { mulberry32 } from 'shared/rng';
 import { ARENA, TICK_MS } from 'shared/constants';
 
-const NO_KEYS = { thrust: false, rotateLeft: false, rotateRight: false, fire: false };
+const _NO_KEYS = { thrust: false, rotateLeft: false, rotateRight: false, fire: false };
 
 /** The scripted pilot: thrust in bursts, weave left/right, fire now and then. */
 export const pilot = (tick: number, k = 0): InputState => ({
@@ -81,7 +81,7 @@ export function simulate({
   let nextClient = TICK_MS + clientPhaseMs;
   let rivalSeq = 0;
   let clientTick = 0;
-  let frameAcc = 0;
+  let _frameAcc = 0;
 
   for (clock = 0; clock <= end; clock += 1) {
     for (let p = toServer[0]; p && p.due <= clock; p = toServer[0]) {
@@ -105,7 +105,7 @@ export function simulate({
     if (clock >= nextClient) {
       client.step(keys(clientTick++));
       nextClient += TICK_MS;
-      frameAcc = 0;
+      _frameAcc = 0;
     }
     // render frames (~60 per second)
     if (clock % 16 === 0) {

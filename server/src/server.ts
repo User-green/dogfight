@@ -64,7 +64,7 @@ export function createGameServer(config: ServerConfig) {
       if (logs.has(room.id)) return;
       const pending = startMatchLog(room, config.logDir);
       logs.set(room.id, pending);
-      pending.then((log) => log.done.catch((err: unknown) => console.error('match log failed:', err)));
+      void pending.then((log) => log.done.catch((err: unknown) => console.error('match log failed:', err)));
     });
     room.on('empty', () => {
       matches.get(room.id)?.stop();

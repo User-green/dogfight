@@ -1,4 +1,4 @@
-# Lab 6 CI: type-check first (cheap, catches what esbuild/Node strip away), then the tests, then a production build.
+# Lab 7 CI: typecheck -> lint -> test (with the shared/ coverage gate) -> build -> e2e. Cheapest checks first.
 # NOTE: GitHub only runs workflows from the repository root. This project lives in a subdirectory of a larger
 # coursework repo, so this file is inert there; it works as-is if `dogfight/` is ever its own repository.
 name: ci
@@ -16,5 +16,14 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
+      - run: npm run lint
       - run: npm test
+      - run: npm run coverage
       - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: test-results/

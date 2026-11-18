@@ -1,0 +1,45 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.6.8/schema.json",
+	"files": {
+		"includes": [
+			"shared/src/**",
+			"shared/test/**",
+			"server/src/**",
+			"server/test/**",
+			"client/src/**",
+			"client/tests/**",
+			"!client/tests/puzzles.ts",
+			"e2e/**/*.ts"
+		]
+	},
+	"formatter": {
+		"enabled": false
+	},
+	"assist": {
+		"enabled": false
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"preset": "recommended",
+			"nursery": {
+				"noFloatingPromises": "error"
+			},
+			"suspicious": {
+				"noExplicitAny": "error",
+				"noAssignInExpressions": "off",
+				"noConfusingVoidType": "off"
+			},
+			"style": {
+				"noNonNullAssertion": "off"
+			},
+			"correctness": {
+				"noVoidTypeReturn": "off"
+			},
+			"complexity": {
+				"useLiteralKeys": "off",
+				"noCommaOperator": "off"
+			}
+		}
+	}
+}

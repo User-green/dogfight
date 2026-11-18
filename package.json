@@ -14,7 +14,10 @@
     "start": "npm run start -w server",
     "test": "npm test -w shared -w server -w client",
     "typecheck": "npm run typecheck -w shared -w server -w client",
-    "check": "npm run typecheck && npm test"
+    "check": "npm run typecheck && npm run lint && npm test",
+    "lint": "biome lint .",
+    "coverage": "npm run coverage -w shared",
+    "e2e": "playwright test"
   },
   "engines": {
     "node": ">=22"

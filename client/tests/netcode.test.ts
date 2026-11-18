@@ -1,7 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { simulate, correctionStats, pilot, stats } from './netsim-harness.ts';
-import type { FrameInfo } from './netsim-harness.ts';
 import type { ClientConfig } from '../src/net/gameclient.ts';
 import type { InputState } from '../src/input.ts';
 import { Ship } from 'shared/sim/ship';

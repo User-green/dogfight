@@ -89,7 +89,7 @@ export function attachWs(wss: WebSocketServer, manager: RoomManager, config: Ser
         const { player, match } = ctx;
         if (!player || !match) return reject(socket, 'must-join-first', stats);
         if (limited(ctx.inputBucket)) return;
-        let packet;
+        let packet: ReturnType<typeof codecs.binary.decodeInputPacket>;
         try {
           if (data[0] !== BinType.INPUT) throw new CodecError('wrong-type');
           packet = codecs.binary.decodeInputPacket(data);

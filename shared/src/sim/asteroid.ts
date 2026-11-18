@@ -141,7 +141,10 @@ export class Asteroid extends Entity {
     ctx.lineJoin = 'round';
 
     ctx.beginPath();
-    this.vertices.forEach((v, i) => (i === 0 ? ctx.moveTo(v.x, v.y) : ctx.lineTo(v.x, v.y)));
+    this.vertices.forEach((v, i) => {
+      if (i === 0) ctx.moveTo(v.x, v.y);
+      else ctx.lineTo(v.x, v.y);
+    });
     ctx.closePath();
     ctx.stroke();
 

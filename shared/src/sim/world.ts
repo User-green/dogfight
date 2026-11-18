@@ -77,7 +77,7 @@ export class World {
    */
   despawn(id: EntityId): void {
     const entity = this.#entities.get(id);
-    if (entity && entity.alive) {
+    if (entity?.alive) {
       entity.alive = false;
       this.#deadList.push(id);
     }

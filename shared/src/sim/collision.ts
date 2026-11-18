@@ -26,11 +26,11 @@ export function* findCollisions(world: World): Generator<[AnyEntity, AnyEntity]>
 
   for (let i = 0; i < len; i++) {
     const a = entities[i];
-    if (!a || !a.alive || a.radius <= 0) continue;
+    if (!a?.alive || a.radius <= 0) continue;
 
     for (let j = i + 1; j < len; j++) {
       const b = entities[j];
-      if (!b || !b.alive || b.radius <= 0) continue;
+      if (!b?.alive || b.radius <= 0) continue;
 
       // Filter non-colliding pair types early
       if (a.kind === Kind.BULLET && b.kind === Kind.BULLET) continue;
@@ -105,7 +105,6 @@ export function resolveCollisions(world: World, { onShipDestroyed }: { onShipDes
       world.spawn(new Explosion({ pos: pickup.pos, particleCount: 12, color: '#00ff88', rng: world.rng }));
       world.addScore(250, ship.id);
       world.emit('pickup', { type: pickup.type });
-      continue;
     }
   }
 }

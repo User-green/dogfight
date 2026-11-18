@@ -25,8 +25,6 @@ import type { Manifest } from './assets/manifest.ts';
 import type { Audio } from './assets/audio.ts';
 import type { RoomInfo, Snapshot, Welcome } from 'shared/protocol';
 import { getCodec } from 'shared/codec/index';
-import { asSeq } from 'shared/types';
-import type { InputPacket } from 'shared/protocol';
 
 const SIZE = 1000; // logical arena units; canvas is scaled to this
 const canvas = query<HTMLCanvasElement>(document, '#scene');
@@ -155,7 +153,7 @@ interface GameStart {
 }
 
 function startGame({ room, playerName, assets, manifest, audio, net }: GameStart): void {
-  const arena = ArenaConfigSchema.parse(assets.arena); // the loader hands back `unknown`: validate where it is used
+  const _arena = ArenaConfigSchema.parse(assets.arena); // the loader hands back `unknown`: validate where it is used
   const sheet = assets.sprites instanceof HTMLImageElement ? assets.sprites : null; // null => vector fallback
   const input = createInput();
   const bus: Bus = new TypedTarget<GameEvents>(); // what the old local World's bus was: HUD + audio subscribe, the netcode dispatches

@@ -23,7 +23,7 @@ export class HomingBehavior {
    */
   update(entity: Entity, dt: number): void {
     const tgt = typeof this.target === 'function' ? this.target() : this.target;
-    if (!tgt || !tgt.alive) return;
+    if (!tgt?.alive) return;
 
     // 1. Calculate vector to target
     const dx = tgt.pos.x - entity.pos.x;

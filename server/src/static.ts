@@ -34,7 +34,7 @@ export async function serveStatic(root: string, urlPath: string, res: ServerResp
     res.writeHead(403).end('forbidden');
     return true;
   }
-  let info;
+  let info: Awaited<ReturnType<typeof stat>>;
   try {
     info = await stat(full);
   } catch {

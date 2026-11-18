@@ -1,6 +1,5 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { once } from 'node:events';
 import { Readable } from 'node:stream';
 import { validate, validateCreateRoom } from '../src/protocol.ts';
 import type { SocketLike } from '../src/rooms.ts';

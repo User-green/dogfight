@@ -12,7 +12,7 @@ export class NdjsonTransform extends Transform {
     super({ writableObjectMode: true, readableObjectMode: false });
   }
   override _transform(event: unknown, _enc: BufferEncoding, cb: TransformCallback): void {
-    cb(null, JSON.stringify(event) + '\n');
+    cb(null, `${JSON.stringify(event)}\n`);
   }
 }
 
